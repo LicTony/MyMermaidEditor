@@ -1,0 +1,407 @@
+﻿using System;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
+using System.Drawing;
+using System.Drawing.Imaging;
+using PdfSharpCore.Pdf;
+using PdfSharpCore.Drawing;
+
+namespace MermaidEditor
+{
+    public partial class MainWindow : Window
+    {
+        private DispatcherTimer? _renderTimer;
+        private string? _htmlTemplate;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            _=InitializeAsync();
+            SetupRenderTimer();
+        }
+
+        private void SetupRenderTimer()
+        {
+            _renderTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1000)
+            };
+            _renderTimer.Tick += async (s, e) =>
+            {
+                _renderTimer.Stop();
+                await RenderDiagram();
+            };
+        }
+
+        private async Task InitializeAsync()
+        {
+            try
+            {
+                await InitializeWebView();
+                await RenderDiagram();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error inicializando la aplicación: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task InitializeWebView()
+        {
+            // Crear el template HTML con Mermaid
+            _htmlTemplate = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #diagram {
+            max-width: 100%;
+            overflow: auto;
+        }
+        .error {
+            color: red;
+            padding: 20px;
+            border: 2px solid red;
+            border-radius: 5px;
+            background-color: #ffeeee;
+        }
+    </style>
+    <script src='https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'></script>
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#fff',
+                primaryTextColor: '#000',
+                primaryBorderColor: '#000',
+                lineColor: '#000',
+                secondaryColor: '#f0f0f0',
+                tertiaryColor: '#fff'
+            }
+        });
+
+        async function renderDiagram(code) {
+            const element = document.getElementById('diagram');
+            try {
+                element.innerHTML = code;
+                element.removeAttribute('data-processed');
+                await mermaid.run();
+            } catch (error) {
+                element.innerHTML = '<div class=""error"">Error en el diagrama: ' + error.message + '</div>';
+            }
+        }
+
+        async function exportToImage() {
+            try {
+                const svgElement = document.querySelector('#diagram svg');
+                if (!svgElement) return null;
+                
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                return new Promise((resolve, reject) => {
+                    img.onload = function() {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob(function(blob) {
+                            const reader = new FileReader();
+                            reader.onloadend = function() {
+                                resolve(reader.result);
+                            };
+                            reader.readAsDataURL(blob);
+                        });
+                    };
+                    img.onerror = reject;
+                    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                });
+            } catch (error) {
+                console.error('Error exportando imagen:', error);
+                return null;
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id='diagram' class='mermaid'></div>
+</body>
+</html>";
+
+            await webView.EnsureCoreWebView2Async(null);
+            webView.NavigateToString(_htmlTemplate);
+        }
+
+        private async Task RenderDiagram()
+        {
+            if (webView.CoreWebView2 == null) return;
+
+            try
+            {
+                string mermaidCode = txtMermaidCode.Text;
+                string escapedCode = mermaidCode
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("\r\n", "\\n")
+                    .Replace("\n", "\\n");
+
+                await webView.CoreWebView2.ExecuteScriptAsync($"renderDiagram('{escapedCode}')");
+                UpdateStatus("Diagrama renderizado correctamente");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error: {ex.Message}");
+            }
+        }
+
+        private void TxtMermaidCode_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_renderTimer  != null && chkAutoRender != null &&  chkAutoRender.IsChecked == true)
+            {
+                _renderTimer.Stop();
+                _renderTimer.Start();
+            }
+        }
+
+        private async void BtnRender_Click(object sender, RoutedEventArgs e)
+        {
+            await RenderDiagram();
+        }
+
+        private async void BtnExportPNG_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SaveFileDialog saveDialog = new()
+                {
+                    Filter = "PNG Image|*.png",
+                    Title = "Guardar diagrama como PNG",
+                    FileName = "diagrama.png"
+                };
+
+                if (saveDialog.ShowDialog() == true)
+                {
+                    UpdateStatus("Exportando a PNG...");
+
+                    // Obtener la imagen del WebView2
+                    string base64Result = await webView.CoreWebView2.ExecuteScriptAsync("exportToImage()");
+
+                    if (string.IsNullOrEmpty(base64Result) || base64Result == "null")
+                    {
+                        // Método alternativo: captura de pantalla del WebView2
+                        using var stream = new MemoryStream();
+                        await webView.CoreWebView2.CapturePreviewAsync(
+                            CoreWebView2CapturePreviewImageFormat.Png, stream);
+
+                        await File.WriteAllBytesAsync(saveDialog.FileName, stream.ToArray());
+                    }
+                    else
+                    {
+                        // Limpiar el resultado
+                        base64Result = base64Result.Trim('"');
+                        if (base64Result.Contains("data:image"))
+                        {
+                            base64Result = base64Result[(base64Result.IndexOf(',') + 1)..];
+                        }
+
+                        byte[] imageBytes = Convert.FromBase64String(base64Result);
+                        await File.WriteAllBytesAsync(saveDialog.FileName, imageBytes);
+                    }
+
+                    UpdateStatus($"PNG exportado: {saveDialog.FileName}");
+                    MessageBox.Show("Diagrama exportado correctamente como PNG",
+                        "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error exportando PNG: {ex.Message}");
+                MessageBox.Show($"Error al exportar PNG: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnExportPDF_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SaveFileDialog saveDialog = new()
+                {
+                    Filter = "PDF Document|*.pdf",
+                    Title = "Guardar diagrama como PDF",
+                    FileName = "diagrama.pdf"
+                };
+
+                if (saveDialog.ShowDialog() == true)
+                {
+                    UpdateStatus("Exportando a PDF...");
+
+                    // Capturar el diagrama como imagen
+                    using (var stream = new MemoryStream())
+                    {
+                        await webView.CoreWebView2.CapturePreviewAsync(
+                            CoreWebView2CapturePreviewImageFormat.Png, stream);
+
+                        // Crear el PDF
+                        using PdfDocument document = new();
+                        PdfPage page = document.AddPage();
+                        page.Size = PdfSharpCore.PageSize.A4;
+
+                        using (XGraphics gfx = XGraphics.FromPdfPage(page))
+                        {
+                            stream.Position = 0;
+                            using var image = XImage.FromStream(() => new MemoryStream(stream.ToArray()));
+                            // Calcular el tamaño para ajustar a la página
+                            double ratioX = page.Width / image.PixelWidth;
+                            double ratioY = page.Height / image.PixelHeight;
+                            double ratio = Math.Min(ratioX, ratioY);
+
+                            double newWidth = image.PixelWidth * ratio * 0.9; // 90% del tamaño
+                            double newHeight = image.PixelHeight * ratio * 0.9;
+
+                            // Centrar la imagen
+                            double x = (page.Width - newWidth) / 2;
+                            double y = (page.Height - newHeight) / 2;
+
+                            gfx.DrawImage(image, x, y, newWidth, newHeight);
+                        }
+
+                        document.Save(saveDialog.FileName);
+                    }
+
+                    UpdateStatus($"PDF exportado: {saveDialog.FileName}");
+                    MessageBox.Show("Diagrama exportado correctamente como PDF",
+                        "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Error exportando PDF: {ex.Message}");
+                MessageBox.Show($"Error al exportar PDF: {ex.Message}",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnClear_Click(object sender, RoutedEventArgs e)
+        {
+            if (MessageBox.Show("¿Está seguro de que desea limpiar el editor?",
+                "Confirmar", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                txtMermaidCode.Clear();
+            }
+        }
+
+        private void CmbExamples_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbExamples.SelectedIndex <= 0) return;
+
+            string example = "";
+            switch (cmbExamples.SelectedIndex)
+            {
+                case 1: // Diagrama de Flujo
+                    example = @"graph TD
+    A[Inicio] --> B{¿Es válido?}
+    B -->|Sí| C[Procesar datos]
+    B -->|No| D[Mostrar error]
+    C --> E[Guardar en DB]
+    D --> F[Registrar log]
+    E --> G[Fin]
+    F --> G";
+                    break;
+
+                case 2: // Diagrama de Secuencia
+                    example = @"sequenceDiagram
+    participant Usuario
+    participant Sistema
+    participant BaseDatos
+    
+    Usuario->>Sistema: Login(usuario, contraseña)
+    Sistema->>BaseDatos: Validar credenciales
+    BaseDatos-->>Sistema: Credenciales válidas
+    Sistema-->>Usuario: Acceso permitido
+    
+    Usuario->>Sistema: Solicitar datos
+    Sistema->>BaseDatos: Query datos
+    BaseDatos-->>Sistema: Retornar datos
+    Sistema-->>Usuario: Mostrar datos";
+                    break;
+
+                case 3: // Diagrama de Gantt
+                    example = @"gantt
+    title Cronograma del Proyecto
+    dateFormat  YYYY-MM-DD
+    
+    section Análisis
+    Requerimientos           :done,    des1, 2024-01-01, 2024-01-07
+    Diseño de arquitectura   :active,  des2, 2024-01-08, 10d
+    
+    section Desarrollo
+    Backend                  :         des3, after des2, 20d
+    Frontend                 :         des4, after des2, 25d
+    
+    section Testing
+    Pruebas unitarias       :         des5, after des3, 5d
+    Pruebas de integración  :         des6, after des4, 7d";
+                    break;
+
+                case 4: // Diagrama de Clases
+                    example = @"classDiagram
+    class Animal {
+        +String nombre
+        +int edad
+        +comer()
+        +dormir()
+    }
+    
+    class Perro {
+        +String raza
+        +ladrar()
+        +jugar()
+    }
+    
+    class Gato {
+        +String color
+        +maullar()
+        +cazar()
+    }
+    
+    Animal <|-- Perro
+    Animal <|-- Gato";
+                    break;
+            }
+
+            if (!string.IsNullOrEmpty(example))
+            {
+                txtMermaidCode.Text = example;
+            }
+
+            cmbExamples.SelectedIndex = 0;
+        }
+
+        private void UpdateStatus(string message)
+        {
+            txtStatus.Text = message;
+        }
+    }
+}

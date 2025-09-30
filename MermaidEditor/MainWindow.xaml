@@ -1,0 +1,134 @@
+﻿<Window x:Class="MermaidEditor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        mc:Ignorable="d"
+        Title="Mermaid Diagram Editor" Height="600" Width="1000"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="25"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <ToolBar Grid.Row="0" Height="35">
+            <Button Name="btnRender" Click="BtnRender_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/refresh.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Renderizar</TextBlock>
+                </StackPanel>
+            </Button>
+            <Separator/>
+            <Button Name="btnExportPNG" Click="BtnExportPNG_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/image.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Exportar PNG</TextBlock>
+                </StackPanel>
+            </Button>
+            <Button Name="btnExportPDF" Click="BtnExportPDF_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/pdf.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Exportar PDF</TextBlock>
+                </StackPanel>
+            </Button>
+            <Separator/>
+            <Button Name="btnClear" Click="BtnClear_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/clear.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Limpiar</TextBlock>
+                </StackPanel>
+            </Button>
+            <Separator/>
+            <ComboBox Name="cmbExamples" Width="150" SelectionChanged="CmbExamples_SelectionChanged">
+                <ComboBoxItem>Ejemplos...</ComboBoxItem>
+                <ComboBoxItem>Diagrama de Flujo</ComboBoxItem>
+                <ComboBoxItem>Diagrama de Secuencia</ComboBoxItem>
+                <ComboBoxItem>Diagrama de Gantt</ComboBoxItem>
+                <ComboBoxItem>Diagrama de Clases</ComboBoxItem>
+            </ComboBox>
+        </ToolBar>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Editor de Mermaid -->
+            <Border Grid.Column="0" BorderBrush="#CCCCCC" BorderThickness="1" Margin="5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#F0F0F0" Padding="5">
+                        <TextBlock FontWeight="Bold">Editor Mermaid</TextBlock>
+                    </Border>
+
+                    <TextBox Name="txtMermaidCode" 
+                             Grid.Row="1"
+                             AcceptsReturn="True"
+                             AcceptsTab="True"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             FontFamily="Consolas"
+                             FontSize="13"
+                             Padding="10"
+                             TextChanged="TxtMermaidCode_TextChanged">
+                        <TextBox.Text>graph TD
+    A[Inicio] --> B{¿Decisión?}
+    B -->|Sí| C[Resultado 1]
+    B -->|No| D[Resultado 2]
+    C --> E[Fin]
+    D --> E[Fin]</TextBox.Text>
+                    </TextBox>
+                </Grid>
+            </Border>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" 
+                          Width="5" 
+                          HorizontalAlignment="Stretch" 
+                          VerticalAlignment="Stretch"
+                          Background="#CCCCCC"
+                          Cursor="SizeWE"/>
+
+            <!-- Vista previa del diagrama -->
+            <Border Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="1" Margin="5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#F0F0F0" Padding="5">
+                        <TextBlock FontWeight="Bold">Vista Previa</TextBlock>
+                    </Border>
+
+                    <wv2:WebView2 Name="webView" Grid.Row="1"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock Name="txtStatus">Listo</TextBlock>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <CheckBox Name="chkAutoRender" IsChecked="True" VerticalAlignment="Center">
+                    Auto-renderizar
+                </CheckBox>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
