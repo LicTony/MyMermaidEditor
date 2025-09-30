@@ -1,0 +1,72 @@
+classDiagram
+    class MainWindow {
+        +MunicipioService municipioService
+        +int debugLevel
+        +CancellationTokenSource cancellationTokenSource
+        +CargarMunicipios()
+        +BtnEjecutar_Click()
+        +SetUIEnabled()
+    }
+
+    class DatosTelegramaService {
+        +Task<List<DatosTelegrama>> ObtenerTelegramasAsync()
+    }
+
+    class MunicipioService {
+        +Task<IEnumerable<Municipio>> GetMunicipiosPorDepartamentoAsync()
+        +Task<Dictionary<string,string>> GetDictionaryMunicipiosAsync()
+    }
+
+    class ListasCargosInterseccionesService {
+        +Task<ResultadoInterseccion> ObtenerListasCargosInterseccionesAsync()
+    }
+
+    class DistribucionService {
+        +int[] DistribuirNumeroAleatorio()
+    }
+
+    class ArchivoService {
+        +string IniciarArchivo()
+        +void EscribirDatosTelegrama()
+        +void EscribirLineaDeControl()
+        +void CerrarArchivo()
+    }
+
+    class SqlDataAccess {
+        +Task<IEnumerable<T>> LoadData<T,U>()
+        +Task<T> LoadDataMultiple<T,U>()
+    }
+
+    MainWindow --> DatosTelegramaService
+    MainWindow --> MunicipioService
+    MainWindow --> ListasCargosInterseccionesService
+    MainWindow --> DistribucionService
+    MainWindow --> ArchivoService
+
+    DatosTelegramaService --> SqlDataAccess
+    MunicipioService --> SqlDataAccess
+    ListasCargosInterseccionesService --> SqlDataAccess
+
+    class DatosTelegrama {
+        +int MunicipioId
+        +string TelegramaCodigo
+        +string CB
+        +int ModeloId
+        +int Electores
+        +int Hojas
+    }
+
+    class Municipio {
+        +int Id
+        +string Nombre
+    }
+
+    class ResultadoInterseccion {
+        +IEnumerable<InterseccionLista> Listas
+        +IEnumerable<InterseccionCargo> Cargos
+        +IEnumerable<InterseccionDetalle> Intersecciones
+    }
+
+    DatosTelegramaService --> DatosTelegrama
+    MunicipioService --> Municipio
+    ListasCargosInterseccionesService --> ResultadoInterseccion

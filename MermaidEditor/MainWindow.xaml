@@ -51,6 +51,27 @@
                 <ComboBoxItem>Diagrama de Gantt</ComboBoxItem>
                 <ComboBoxItem>Diagrama de Clases</ComboBoxItem>
             </ComboBox>
+            <Separator/>
+            <!-- Controles de Zoom -->
+            <Button Name="btnZoomOut" Click="BtnZoomOut_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/zoom-out.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Zoom -</TextBlock>
+                </StackPanel>
+            </Button>
+            <Button Name="btnZoomIn" Click="BtnZoomIn_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/zoom-in.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">Zoom +</TextBlock>
+                </StackPanel>
+            </Button>
+            <Button Name="btnZoomReset" Click="BtnZoomReset_Click" Padding="5,2">
+                <StackPanel Orientation="Horizontal">
+                    <Image Source="Icons/zoom-reset.png" Width="16" Height="16" Margin="0,0,5,0"/>
+                    <TextBlock VerticalAlignment="Center">100%</TextBlock>
+                </StackPanel>
+            </Button>
+            <TextBlock Name="txtZoomLevel" VerticalAlignment="Center" Margin="5,0" Text="100%"/>
         </ToolBar>
 
         <!-- Main Content -->
@@ -82,13 +103,7 @@
                              FontFamily="Consolas"
                              FontSize="13"
                              Padding="10"
-                             TextChanged="TxtMermaidCode_TextChanged">
-                        <TextBox.Text>graph TD
-    A[Inicio] --> B{¿Decisión?}
-    B -->|Sí| C[Resultado 1]
-    B -->|No| D[Resultado 2]
-    C --> E[Fin]
-    D --> E[Fin]</TextBox.Text>
+                             TextChanged="TxtMermaidCode_TextChanged">                        
                     </TextBox>
                 </Grid>
             </Border>
@@ -113,7 +128,9 @@
                         <TextBlock FontWeight="Bold">Vista Previa</TextBlock>
                     </Border>
 
-                    <wv2:WebView2 Name="webView" Grid.Row="1"/>
+                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <wv2:WebView2 Name="webView" />
+                    </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>

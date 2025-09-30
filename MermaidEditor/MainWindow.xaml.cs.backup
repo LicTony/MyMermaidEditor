@@ -4,13 +4,13 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using System.Drawing;
 using System.Drawing.Imaging;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Drawing;
+using System.Windows.Input;
 
 namespace MermaidEditor
 {
@@ -107,11 +107,13 @@ namespace MermaidEditor
         async function renderDiagram(code) {
             const element = document.getElementById('diagram');
             try {
-                element.innerHTML = code;
-                element.removeAttribute('data-processed');
+                // Usar textContent y luego cambiar a innerHTML para que Mermaid lo procese
+                element.textContent = code;
+                element.setAttribute('class', 'mermaid');
+                // Forzar una actualización de Mermaid
                 await mermaid.run();
             } catch (error) {
-                element.innerHTML = '<div class=""error"">Error en el diagrama: ' + error.message + '</div>';
+                element.innerHTML = '<div class="error">Error en el diagrama: ' + error.message + '</div>';
             }
         }
 
@@ -167,19 +169,32 @@ namespace MermaidEditor
             {
                 string mermaidCode = txtMermaidCode.Text;
                 
-                // Codificar el código como una cadena más segura para JavaScript
-                // Usando JSON.stringify para manejar caracteres especiales
-                var jsonString = System.Text.Json.JsonSerializer.Serialize(mermaidCode);
-                // Remover las comillas al inicio y final ya que se agregarán en el script
-                var jsonCode = jsonString.Substring(1, jsonString.Length - 2);
+                // Codificar el código Mermaid como una cadena segura para JavaScript
+                string safeCode = EscapeJavaScriptString(mermaidCode);
                 
-                await webView.CoreWebView2.ExecuteScriptAsync($"renderDiagram({jsonString})");
+                await webView.CoreWebView2.ExecuteScriptAsync($"renderDiagram('{safeCode}')");
                 UpdateStatus("Diagrama renderizado correctamente");
             }
             catch (Exception ex)
             {
                 UpdateStatus($"Error: {ex.Message}");
             }
+        }
+
+        private string EscapeJavaScriptString(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            return input
+                .Replace("\\", "\\\\")      // Escapar backslashes primero
+                .Replace("'", "\\'")         // Escapar comillas simples
+                .Replace("\"", "\\\"")       // Escapar comillas dobles
+                .Replace("\r", "\\r")        // Escapar retorno de carro
+                .Replace("\n", "\\n")        // Escapar nueva línea
+                .Replace("\t", "\\t")        // Escapar tabulaciones
+                .Replace("\b", "\\b")        // Escapar retroceso
+                .Replace("\f", "\\f");       // Escapar avance de página
         }
 
         private void TxtMermaidCode_TextChanged(object sender, TextChangedEventArgs e)
@@ -435,7 +450,7 @@ namespace MermaidEditor
             }
         }
 
-        private void SetZoom(double factor)
+        private async Task SetZoom(double factor)
         {
             // Limitar el factor de zoom al rango permitido
             factor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, factor));
@@ -446,21 +461,21 @@ namespace MermaidEditor
             UpdateZoomDisplay();
         }
 
-        private void BtnZoomIn_Click(object sender, RoutedEventArgs e)
+        private async void BtnZoomIn_Click(object sender, RoutedEventArgs e)
         {
             double newZoom = _currentZoomFactor + ZOOM_STEP;
-            SetZoom(newZoom);
+            _ = SetZoom(newZoom); // Usar _ para ignorar la tarea y evitar la advertencia
         }
 
-        private void BtnZoomOut_Click(object sender, RoutedEventArgs e)
+        private async void BtnZoomOut_Click(object sender, RoutedEventArgs e)
         {
             double newZoom = _currentZoomFactor - ZOOM_STEP;
-            SetZoom(newZoom);
+            _ = SetZoom(newZoom); // Usar _ para ignorar la tarea y evitar la advertencia
         }
 
-        private void BtnZoomReset_Click(object sender, RoutedEventArgs e)
+        private async void BtnZoomReset_Click(object sender, RoutedEventArgs e)
         {
-            SetZoom(1.0); // Volver a 100%
+            _ = SetZoom(1.0); // Volver a 100% - Usar _ para ignorar la tarea y evitar la advertencia
         }
 
         private void WebView_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
@@ -472,7 +487,7 @@ namespace MermaidEditor
                 double newZoom = _currentZoomFactor + zoomIncrement;
                 
                 e.Handled = true; // Evitar que el evento se propague
-                SetZoom(newZoom);
+                _ = SetZoom(newZoom); // Usar _ para ignorar la tarea y evitar la advertencia
             }
         }
 

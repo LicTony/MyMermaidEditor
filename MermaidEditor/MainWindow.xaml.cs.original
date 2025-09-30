@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using System.Drawing;
@@ -18,17 +17,12 @@ namespace MermaidEditor
     {
         private DispatcherTimer? _renderTimer;
         private string? _htmlTemplate;
-        private double _currentZoomFactor = 1.0; // Valor inicial 100%
-        private const double ZOOM_STEP = 0.1;    // Aumento/reducción del 10% por paso
-        private const double MIN_ZOOM = 0.1;     // Mínimo 10%
-        private const double MAX_ZOOM = 3.0;     // Máximo 300%
 
         public MainWindow()
         {
             InitializeComponent();
             _=InitializeAsync();
             SetupRenderTimer();
-            SetupZoomControls();
         }
 
         private void SetupRenderTimer()
@@ -166,14 +160,13 @@ namespace MermaidEditor
             try
             {
                 string mermaidCode = txtMermaidCode.Text;
-                
-                // Codificar el código como una cadena más segura para JavaScript
-                // Usando JSON.stringify para manejar caracteres especiales
-                var jsonString = System.Text.Json.JsonSerializer.Serialize(mermaidCode);
-                // Remover las comillas al inicio y final ya que se agregarán en el script
-                var jsonCode = jsonString.Substring(1, jsonString.Length - 2);
-                
-                await webView.CoreWebView2.ExecuteScriptAsync($"renderDiagram({jsonString})");
+                string escapedCode = mermaidCode
+                    .Replace("\\", "\\\\")
+                    .Replace("'", "\\'")
+                    .Replace("\r\n", "\\n")
+                    .Replace("\n", "\\n");
+
+                await webView.CoreWebView2.ExecuteScriptAsync($"renderDiagram('{escapedCode}')");
                 UpdateStatus("Diagrama renderizado correctamente");
             }
             catch (Exception ex)
@@ -410,97 +403,5 @@ namespace MermaidEditor
         {
             txtStatus.Text = message;
         }
-
-        #region Funcionalidad de Zoom
-
-        private void SetupZoomControls()
-        {
-            // Actualizar el nivel de zoom inicial en la interfaz
-            UpdateZoomDisplay();
-            
-            // Manejar el evento MouseWheel para zoom con rueda del mouse
-            webView.MouseWheel += WebView_MouseWheel;
-            
-            // Manejar eventos del teclado para zoom con atajos
-            this.KeyDown += MainWindow_KeyDown;
-        }
-
-        private void UpdateZoomDisplay()
-        {
-            // Actualizar el texto del nivel de zoom
-            if (txtZoomLevel != null)
-            {
-                int zoomPercentage = (int)(_currentZoomFactor * 100);
-                txtZoomLevel.Text = $"{zoomPercentage}%";
-            }
-        }
-
-        private void SetZoom(double factor)
-        {
-            // Limitar el factor de zoom al rango permitido
-            factor = Math.Max(MIN_ZOOM, Math.Min(MAX_ZOOM, factor));
-            
-            // Establecer el zoom del WebView2
-            webView.ZoomFactor = factor;
-            _currentZoomFactor = factor;
-            UpdateZoomDisplay();
-        }
-
-        private void BtnZoomIn_Click(object sender, RoutedEventArgs e)
-        {
-            double newZoom = _currentZoomFactor + ZOOM_STEP;
-            SetZoom(newZoom);
-        }
-
-        private void BtnZoomOut_Click(object sender, RoutedEventArgs e)
-        {
-            double newZoom = _currentZoomFactor - ZOOM_STEP;
-            SetZoom(newZoom);
-        }
-
-        private void BtnZoomReset_Click(object sender, RoutedEventArgs e)
-        {
-            SetZoom(1.0); // Volver a 100%
-        }
-
-        private void WebView_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
-        {
-            if (Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                // Zoom con rueda del mouse + Ctrl
-                double zoomIncrement = e.Delta > 0 ? ZOOM_STEP : -ZOOM_STEP;
-                double newZoom = _currentZoomFactor + zoomIncrement;
-                
-                e.Handled = true; // Evitar que el evento se propague
-                SetZoom(newZoom);
-            }
-        }
-
-        private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-        {
-            if (Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                switch (e.Key)
-                {
-                    case System.Windows.Input.Key.OemPlus:  // Tecla +
-                    case System.Windows.Input.Key.Add:      // Tecla NumPad +
-                        e.Handled = true;
-                        BtnZoomIn_Click(sender, new RoutedEventArgs());
-                        break;
-                    case System.Windows.Input.Key.OemMinus: // Tecla -
-                    case System.Windows.Input.Key.Subtract: // Tecla NumPad -
-                        e.Handled = true;
-                        BtnZoomOut_Click(sender, new RoutedEventArgs());
-                        break;
-                    case System.Windows.Input.Key.D0:       // Tecla 0
-                    case System.Windows.Input.Key.NumPad0:  // Tecla NumPad 0
-                        e.Handled = true;
-                        BtnZoomReset_Click(sender, new RoutedEventArgs());
-                        break;
-                }
-            }
-        }
-
-        #endregion
     }
 }
