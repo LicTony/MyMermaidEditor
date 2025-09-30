@@ -156,7 +156,69 @@ namespace MermaidEditor
 </html>";
 
             await webView.EnsureCoreWebView2Async(null);
+            
+            // Configurar el manejo de mensajes desde JavaScript
+            webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            
             webView.NavigateToString(_htmlTemplate);
+            
+            // Inyectar la versión mejorada de la función renderDiagram después de que la página se haya cargado
+            webView.CoreWebView2.NavigationCompleted += async (sender, args) =>
+            {
+                // Inyectar una versión mejorada de la función que capture errores
+                string enhancedScript = @"
+                    async function renderDiagram(code) {
+                        const element = document.getElementById('diagram');
+                        try {
+                            element.innerHTML = code;
+                            element.removeAttribute('data-processed');
+                            await mermaid.run();
+                        } catch (error) {
+                            // Mostrar error en la interfaz y notificar al C# para logging
+                            element.innerHTML = '<div class=""error"">Error en el diagrama: ' + error.message + '</div>';
+                            // Llamar a una función C# para registrar el error
+                            if (window.chrome && window.chrome.webview) {
+                                window.chrome.webview.postMessage({ 
+                                    type: 'mermaidError', 
+                                    error: error.message,
+                                    originalCode: code
+                                });
+                            }
+                            console.error('Error en Mermaid:', error);
+                        }
+                    }";
+                
+                await webView.CoreWebView2.ExecuteScriptAsync(enhancedScript);
+            };
+        }
+
+        private void OnWebMessageReceived(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                var messageJson = e.WebMessageAsJson;
+                var message = System.Text.Json.JsonDocument.Parse(messageJson);
+                var messageType = message.RootElement.GetProperty("type").GetString();
+
+                if (messageType == "mermaidError")
+                {
+                    var errorMessage = message.RootElement.GetProperty("error").GetString();
+                    var originalCode = message.RootElement.GetProperty("originalCode").GetString();
+
+                    Serilog.Log.Error("Error en diagrama Mermaid: {ErrorMessage}\nCódigo original: {OriginalCode}", 
+                        errorMessage, originalCode);
+
+                    // Actualizar el estado para mostrar el error
+                    Dispatcher.Invoke(() =>
+                    {
+                        UpdateStatus($"Error en diagrama: {errorMessage}");
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error al procesar mensaje web recibido");
+            }
         }
 
         private async Task RenderDiagram()
